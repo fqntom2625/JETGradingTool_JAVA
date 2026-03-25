@@ -3,6 +3,9 @@ import javax.swing.border.*;
 import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.*;
 import java.util.List;
 
@@ -11,6 +14,7 @@ public class JetGraderApp extends JFrame {
     private static final String SCREEN_HOME = "HOME";
     private static final String SCREEN_GRADE = "GRADE";
     private static final String SCREEN_EDIT = "EDIT";
+    private static final Path ANSWERS_FILE = Paths.get("answers.json");
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel rootPanel = new JPanel(cardLayout);
@@ -46,9 +50,28 @@ public class JetGraderApp extends JFrame {
 
     public JetGraderApp() {
         initializeData();
+        initializeAnswerStorage();
         initializeFrame();
         initializeScreens();
         showScreen(SCREEN_HOME);
+    }
+
+    private void initializeAnswerStorage() {
+        if (Files.exists(ANSWERS_FILE)) {
+            try {
+                loadAnswersFromJson();
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(
+                        null,
+                        "answers.json 파일을 불러오지 못했습니다.\n기본 정답으로 시작합니다.\n\n사유: " + e.getMessage(),
+                        "정답 파일 불러오기 실패",
+                        JOptionPane.WARNING_MESSAGE
+                );
+                saveAnswersToJsonWithAlert(false);
+            }
+        } else {
+            saveAnswersToJsonWithAlert(false);
+        }
     }
 
     private void initializeFrame() {
@@ -271,13 +294,17 @@ public class JetGraderApp extends JFrame {
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         bottom.setOpaque(false);
 
-        JButton resetButton = new JButton("현재 저장값 다시 불러오기");
+        JButton reloadButton = new JButton("파일 다시 불러오기");
+        reloadButton.addActionListener(e -> reloadAnswersFromDisk());
+
+        JButton resetButton = new JButton("현재 메모리값 다시 불러오기");
         resetButton.addActionListener(e -> rebuildEditScreen());
 
         JButton saveButton = new JButton("저장하기");
         saveButton.setFont(new Font("Malgun Gothic", Font.BOLD, 15));
         saveButton.addActionListener(e -> saveEditedAnswers());
 
+        bottom.add(reloadButton);
         bottom.add(resetButton);
         bottom.add(saveButton);
         return bottom;
@@ -305,7 +332,7 @@ public class JetGraderApp extends JFrame {
         gradeRcContainer.removeAll();
         gradeResultArea.setText("");
 
-        gradeInfoLabel.setText("입력 후 한 칸씩 자동 이동");
+        gradeInfoLabel.setText("입력 후 한 칸씩 자동 이동 | 정답 파일: " + ANSWERS_FILE.toAbsolutePath());
 
         buildAnswerInputRows(gradeLcContainer, gradeLcFields, level.lcParts);
         buildAnswerInputRows(gradeRcContainer, gradeRcFields, level.rcParts);
@@ -331,7 +358,7 @@ public class JetGraderApp extends JFrame {
         editLcContainer.removeAll();
         editRcContainer.removeAll();
 
-        editInfoLabel.setText("저장 시 해당 레벨 정답이 교체됨");
+        editInfoLabel.setText("저장 시 answers.json 파일까지 함께 갱신됨");
 
         buildAnswerEditRows(editLcContainer, editLcFields, level.lcParts, level.lcAnswers);
         buildAnswerEditRows(editRcContainer, editRcFields, level.rcParts, level.rcAnswers);
@@ -429,8 +456,7 @@ public class JetGraderApp extends JFrame {
     private List<DigitField> createDigitFieldList(int count) {
         List<DigitField> fields = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            DigitField field = new DigitField();
-            fields.add(field);
+            fields.add(new DigitField());
         }
         return fields;
     }
@@ -440,7 +466,6 @@ public class JetGraderApp extends JFrame {
             DigitField current = fields.get(i);
             DigitField prev = i > 0 ? fields.get(i - 1) : null;
             DigitField next = i < fields.size() - 1 ? fields.get(i + 1) : null;
-
             current.setNavigationTargets(prev, next);
         }
     }
@@ -557,8 +582,12 @@ public class JetGraderApp extends JFrame {
             return;
         }
 
+        if (!saveAnswersToJsonWithAlert(true)) {
+            return;
+        }
+
         JOptionPane.showMessageDialog(this,
-                levelName + " 답안이 저장되었습니다.\n메인 화면으로 돌아갑니다.",
+                levelName + " 답안이 저장되었습니다.\nanswers.json 파일도 함께 갱신되었습니다.\n메인 화면으로 돌아갑니다.",
                 "저장 완료",
                 JOptionPane.INFORMATION_MESSAGE);
 
@@ -592,6 +621,179 @@ public class JetGraderApp extends JFrame {
             targetAnswers.put(part.name, newAnswers);
         }
         return true;
+    }
+
+    private void reloadAnswersFromDisk() {
+        try {
+            if (!Files.exists(ANSWERS_FILE)) {
+                JOptionPane.showMessageDialog(this,
+                        "answers.json 파일이 아직 없습니다.\n기본값을 먼저 저장합니다.",
+                        "파일 없음",
+                        JOptionPane.WARNING_MESSAGE);
+                saveAnswersToJsonWithAlert(true);
+            } else {
+                loadAnswersFromJson();
+                rebuildEditScreen();
+                rebuildGradeScreen();
+                JOptionPane.showMessageDialog(this,
+                        "answers.json 파일을 다시 불러왔습니다.",
+                        "불러오기 완료",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this,
+                    "answers.json 파일을 다시 불러오지 못했습니다.\n사유: " + e.getMessage(),
+                    "불러오기 실패",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private boolean saveAnswersToJsonWithAlert(boolean showError) {
+        try {
+            Files.writeString(
+                    ANSWERS_FILE,
+                    buildAnswersJson(),
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE
+            );
+            return true;
+        } catch (IOException e) {
+            if (showError) {
+                JOptionPane.showMessageDialog(this,
+                        "answers.json 저장에 실패했습니다.\n사유: " + e.getMessage(),
+                        "저장 실패",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+            return false;
+        }
+    }
+
+    private void loadAnswersFromJson() throws IOException {
+        String json = Files.readString(ANSWERS_FILE, StandardCharsets.UTF_8);
+        Object parsed = new SimpleJsonParser(json).parse();
+        if (!(parsed instanceof Map)) {
+            throw new IOException("JSON 최상위 구조가 객체가 아닙니다.");
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> root = (Map<String, Object>) parsed;
+        Object levelsNode = root.get("levels");
+        if (!(levelsNode instanceof Map)) {
+            throw new IOException("levels 항목이 없습니다.");
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> levelMap = (Map<String, Object>) levelsNode;
+
+        for (Map.Entry<String, LevelConfig> levelEntry : levels.entrySet()) {
+            String levelName = levelEntry.getKey();
+            LevelConfig level = levelEntry.getValue();
+            Object levelNode = levelMap.get(levelName);
+            if (!(levelNode instanceof Map)) {
+                continue;
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> levelObject = (Map<String, Object>) levelNode;
+            applyJsonGroup(level.lcParts, level.lcAnswers, levelObject.get("LC"));
+            applyJsonGroup(level.rcParts, level.rcAnswers, levelObject.get("RC"));
+        }
+    }
+
+    private void applyJsonGroup(List<PartConfig> parts,
+                                Map<String, List<String>> targetMap,
+                                Object groupNode) throws IOException {
+        if (!(groupNode instanceof Map)) {
+            throw new IOException("LC/RC 구조가 올바르지 않습니다.");
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> groupMap = (Map<String, Object>) groupNode;
+
+        for (PartConfig part : parts) {
+            Object partNode = groupMap.get(part.name);
+            if (!(partNode instanceof List)) {
+                throw new IOException(part.name + " 배열이 없습니다.");
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Object> rawList = (List<Object>) partNode;
+            if (rawList.size() != part.count) {
+                throw new IOException(part.name + " 문항 수가 맞지 않습니다. 필요=" + part.count + ", 실제=" + rawList.size());
+            }
+
+            List<String> newAnswers = new ArrayList<>();
+            for (Object obj : rawList) {
+                String value = String.valueOf(obj).trim();
+                if (!value.matches("[1-5]")) {
+                    throw new IOException(part.name + " 정답 값이 1~5가 아닙니다: " + value);
+                }
+                newAnswers.add(value);
+            }
+            targetMap.put(part.name, newAnswers);
+        }
+    }
+
+    private String buildAnswersJson() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\n");
+        sb.append("  \"version\": 1,\n");
+        sb.append("  \"levels\": {\n");
+
+        int levelIndex = 0;
+        for (LevelConfig level : levels.values()) {
+            if (levelIndex++ > 0) {
+                sb.append(",\n");
+            }
+            sb.append("    \"").append(escapeJson(level.name)).append("\": {\n");
+            sb.append("      \"LC\": ").append(groupToJson(level.lcParts, level.lcAnswers, 6)).append(",\n");
+            sb.append("      \"RC\": ").append(groupToJson(level.rcParts, level.rcAnswers, 6)).append("\n");
+            sb.append("    }");
+        }
+
+        sb.append("\n  }\n");
+        sb.append("}\n");
+        return sb.toString();
+    }
+
+    private String groupToJson(List<PartConfig> parts, Map<String, List<String>> answerMap, int indentSpaces) {
+        String indent = " ".repeat(indentSpaces);
+        String innerIndent = " ".repeat(indentSpaces + 2);
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\n");
+
+        for (int i = 0; i < parts.size(); i++) {
+            PartConfig part = parts.get(i);
+            List<String> answers = answerMap.get(part.name);
+            sb.append(innerIndent)
+                    .append("\"")
+                    .append(escapeJson(part.name))
+                    .append("\": ")
+                    .append(stringListToJson(answers));
+            if (i < parts.size() - 1) {
+                sb.append(",");
+            }
+            sb.append("\n");
+        }
+
+        sb.append(indent).append("}");
+        return sb.toString();
+    }
+
+    private String stringListToJson(List<String> values) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append("\"").append(escapeJson(values.get(i))).append("\"");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private String escapeJson(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private double calculateMax(List<PartConfig> parts) {
@@ -798,6 +1000,180 @@ public class JetGraderApp extends JFrame {
             @Override
             public void remove(FilterBypass fb, int offset, int length) throws BadLocationException {
                 super.remove(fb, offset, length);
+            }
+        }
+    }
+
+    static class SimpleJsonParser {
+        private final String text;
+        private int index;
+
+        SimpleJsonParser(String text) {
+            this.text = text;
+        }
+
+        Object parse() throws IOException {
+            skipWhitespace();
+            Object value = parseValue();
+            skipWhitespace();
+            if (index != text.length()) {
+                throw new IOException("JSON 끝 이후에 불필요한 내용이 있습니다.");
+            }
+            return value;
+        }
+
+        private Object parseValue() throws IOException {
+            skipWhitespace();
+            if (index >= text.length()) {
+                throw new IOException("예상보다 빨리 JSON이 끝났습니다.");
+            }
+
+            char ch = text.charAt(index);
+            if (ch == '{') return parseObject();
+            if (ch == '[') return parseArray();
+            if (ch == '"') return parseString();
+            if (ch == '-' || Character.isDigit(ch)) return parseNumber();
+            if (match("true")) return Boolean.TRUE;
+            if (match("false")) return Boolean.FALSE;
+            if (match("null")) return null;
+
+            throw new IOException("알 수 없는 JSON 값 시작: " + ch);
+        }
+
+        private Map<String, Object> parseObject() throws IOException {
+            Map<String, Object> map = new LinkedHashMap<>();
+            expect('{');
+            skipWhitespace();
+            if (peek('}')) {
+                expect('}');
+                return map;
+            }
+
+            while (true) {
+                skipWhitespace();
+                String key = parseString();
+                skipWhitespace();
+                expect(':');
+                skipWhitespace();
+                Object value = parseValue();
+                map.put(key, value);
+                skipWhitespace();
+                if (peek('}')) {
+                    expect('}');
+                    break;
+                }
+                expect(',');
+            }
+            return map;
+        }
+
+        private List<Object> parseArray() throws IOException {
+            List<Object> list = new ArrayList<>();
+            expect('[');
+            skipWhitespace();
+            if (peek(']')) {
+                expect(']');
+                return list;
+            }
+
+            while (true) {
+                skipWhitespace();
+                list.add(parseValue());
+                skipWhitespace();
+                if (peek(']')) {
+                    expect(']');
+                    break;
+                }
+                expect(',');
+            }
+            return list;
+        }
+
+        private String parseString() throws IOException {
+            expect('"');
+            StringBuilder sb = new StringBuilder();
+            while (index < text.length()) {
+                char ch = text.charAt(index++);
+                if (ch == '"') {
+                    return sb.toString();
+                }
+                if (ch == '\\') {
+                    if (index >= text.length()) {
+                        throw new IOException("문자열 이스케이프가 잘못되었습니다.");
+                    }
+                    char esc = text.charAt(index++);
+                    switch (esc) {
+                        case '"': sb.append('"'); break;
+                        case '\\': sb.append('\\'); break;
+                        case '/': sb.append('/'); break;
+                        case 'b': sb.append('\b'); break;
+                        case 'f': sb.append('\f'); break;
+                        case 'n': sb.append('\n'); break;
+                        case 'r': sb.append('\r'); break;
+                        case 't': sb.append('\t'); break;
+                        case 'u':
+                            if (index + 4 > text.length()) {
+                                throw new IOException("유니코드 이스케이프가 잘못되었습니다.");
+                            }
+                            String hex = text.substring(index, index + 4);
+                            index += 4;
+                            try {
+                                sb.append((char) Integer.parseInt(hex, 16));
+                            } catch (NumberFormatException e) {
+                                throw new IOException("유니코드 이스케이프가 잘못되었습니다: " + hex);
+                            }
+                            break;
+                        default:
+                            throw new IOException("지원하지 않는 이스케이프 문자: \\" + esc);
+                    }
+                } else {
+                    sb.append(ch);
+                }
+            }
+            throw new IOException("문자열이 닫히지 않았습니다.");
+        }
+
+        private Object parseNumber() throws IOException {
+            int start = index;
+            if (text.charAt(index) == '-') index++;
+            while (index < text.length() && Character.isDigit(text.charAt(index))) index++;
+            if (index < text.length() && text.charAt(index) == '.') {
+                index++;
+                while (index < text.length() && Character.isDigit(text.charAt(index))) index++;
+            }
+            String number = text.substring(start, index);
+            try {
+                if (number.contains(".")) {
+                    return Double.parseDouble(number);
+                }
+                return Long.parseLong(number);
+            } catch (NumberFormatException e) {
+                throw new IOException("숫자 형식이 잘못되었습니다: " + number);
+            }
+        }
+
+        private boolean match(String keyword) {
+            if (text.startsWith(keyword, index)) {
+                index += keyword.length();
+                return true;
+            }
+            return false;
+        }
+
+        private boolean peek(char expected) {
+            return index < text.length() && text.charAt(index) == expected;
+        }
+
+        private void expect(char expected) throws IOException {
+            if (index >= text.length() || text.charAt(index) != expected) {
+                throw new IOException("'" + expected + "' 문자가 필요합니다.");
+            }
+            index++;
+        }
+
+        private void skipWhitespace() {
+            while (index < text.length() && Character.isWhitespace(text.charAt(index))) {
+                index++;
             }
         }
     }
