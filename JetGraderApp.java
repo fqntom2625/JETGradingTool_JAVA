@@ -17,7 +17,7 @@ public class JetGraderApp extends JFrame {
     private static final Path ANSWERS_FILE = Paths.get("answers.json");
 
     private static final Color BG = new Color(243, 246, 251);
-    private static final Color CARD = Color.WHITE;
+    private static final Color CARD = new Color(255, 255, 255);
     private static final Color CARD_SOFT = new Color(248, 250, 253);
     private static final Color PRIMARY = new Color(59, 91, 219);
     private static final Color PRIMARY_DARK = new Color(43, 69, 176);
@@ -27,6 +27,9 @@ public class JetGraderApp extends JFrame {
     private static final Color SUCCESS = new Color(13, 148, 136);
     private static final Color ORANGE = new Color(217, 119, 6);
     private static final Color RED = new Color(220, 38, 38);
+    private static final Color BTN_BLUE = new Color(52, 120, 246);
+    private static final Color BTN_GREEN = new Color(34, 197, 94);
+    private static final Color BTN_PURPLE = new Color(139, 92, 246);
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel rootPanel = new JPanel(cardLayout);
@@ -223,7 +226,7 @@ public class JetGraderApp extends JFrame {
         answerLeft.add(Box.createVerticalStrut(8));
         answerLeft.add(aDesc);
 
-        JButton editButton = createPrimaryButton("답안 수정 열기", SUCCESS);
+        JButton editButton = createPrimaryButton("답안 수정 열기", BTN_PURPLE);
         editButton.addActionListener(e -> {
             rebuildEditScreen();
             showScreen(SCREEN_EDIT);
@@ -309,7 +312,7 @@ public class JetGraderApp extends JFrame {
     }
 
     private JPanel buildGradeBottom() {
-        JPanel bottom = new JPanel(new BorderLayout(14, 14));
+        JPanel bottom = new JPanel(new BorderLayout(12, 12));
         bottom.setOpaque(false);
 
         JPanel actions = createRoundedPanel(CARD, new EmptyBorder(12, 16, 12, 16));
@@ -318,28 +321,35 @@ public class JetGraderApp extends JFrame {
         JButton clearButton = createSecondaryButton("입력 초기화");
         clearButton.addActionListener(e -> clearCurrentGradeInputs());
 
-        JButton gradeButton = createPrimaryButton("채점하기", PRIMARY);
+        JButton gradeButton = createPrimaryButton("채점하기", BTN_GREEN);
         gradeButton.addActionListener(e -> performUnifiedGrading());
 
         actions.add(clearButton);
         actions.add(gradeButton);
 
-        JPanel resultCard = createRoundedPanel(CARD, new EmptyBorder(16, 16, 16, 16));
-        resultCard.setLayout(new BorderLayout(10, 10));
+        JPanel resultCard = createRoundedPanel(CARD, new EmptyBorder(12, 14, 12, 14));
+        resultCard.setLayout(new BorderLayout(8, 8));
+
         JLabel resultTitle = new JLabel("채점 결과");
-        resultTitle.setFont(new Font("Malgun Gothic", Font.BOLD, 16));
+        resultTitle.setFont(new Font("Malgun Gothic", Font.BOLD, 15));
         resultTitle.setForeground(TEXT);
 
-        gradeResultArea = new JTextArea(13, 20);
+        gradeResultArea = new JTextArea(4, 20);
         gradeResultArea.setEditable(false);
-        gradeResultArea.setFont(new Font("Malgun Gothic", Font.PLAIN, 14));
-        gradeResultArea.setMargin(new Insets(12, 12, 12, 12));
+        gradeResultArea.setLineWrap(true);
+        gradeResultArea.setWrapStyleWord(true);
+        gradeResultArea.setFont(new Font("Malgun Gothic", Font.BOLD, 14));
+        gradeResultArea.setMargin(new Insets(10, 10, 10, 10));
         gradeResultArea.setBackground(CARD_SOFT);
         gradeResultArea.setForeground(TEXT);
         gradeResultArea.setBorder(new LineBorder(LINE));
 
+        JScrollPane resultScroll = new JScrollPane(gradeResultArea);
+        resultScroll.setPreferredSize(new Dimension(100, 120));
+        resultScroll.setBorder(BorderFactory.createEmptyBorder());
+
         resultCard.add(resultTitle, BorderLayout.NORTH);
-        resultCard.add(new JScrollPane(gradeResultArea), BorderLayout.CENTER);
+        resultCard.add(resultScroll, BorderLayout.CENTER);
 
         bottom.add(actions, BorderLayout.NORTH);
         bottom.add(resultCard, BorderLayout.CENTER);
@@ -406,21 +416,37 @@ public class JetGraderApp extends JFrame {
         topCard.add(info, BorderLayout.WEST);
         wrapper.add(topCard, BorderLayout.NORTH);
 
-        JPanel content = new JPanel(new GridLayout(2, 1, 18, 18));
+        JPanel content = new JPanel();
         content.setOpaque(false);
-        content.add(buildMockSection("LC 1~17", 1, 17));
-        content.add(buildMockSection("RC 18~45", 18, 45));
-        wrapper.add(content, BorderLayout.CENTER);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+
+        JPanel lcPanel = buildMockSection("LC 1~17", 1, 17);
+        lcPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel rcPanel = buildMockSection("RC 18~45", 18, 45);
+        rcPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        content.add(lcPanel);
+        content.add(Box.createVerticalStrut(18));
+        content.add(rcPanel);
+
+        wrapper.add(createStyledScrollPane(content), BorderLayout.CENTER);
 
         if (!mockGradeFields.isEmpty()) {
-            SwingUtilities.invokeLater(() -> mockGradeFields.get(0).requestFocusInWindow());
+            SwingUtilities.invokeLater(new Runnable() {
+                public void run() {
+                    mockGradeFields.get(0).requestFocusInWindow();
+                }
+            });
         }
         return wrapper;
     }
 
     private JPanel buildMockSection(String title, int start, int end) {
         JPanel card = createCardSection(title);
-        JPanel flow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel flow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         flow.setOpaque(false);
 
         int count = end - start + 1;
@@ -435,9 +461,11 @@ public class JetGraderApp extends JFrame {
         for (int i = 0; i < count; i++) {
             JPanel wrap = new JPanel(new BorderLayout(0, 4));
             wrap.setOpaque(false);
+
             JLabel num = new JLabel(String.valueOf(start + i), SwingConstants.CENTER);
-            num.setFont(new Font("Malgun Gothic", Font.PLAIN, 11));
+            num.setFont(new Font("Malgun Gothic", Font.PLAIN, 12));
             num.setForeground(MUTED);
+
             wrap.add(local.get(i), BorderLayout.CENTER);
             wrap.add(num, BorderLayout.SOUTH);
             flow.add(wrap);
@@ -453,22 +481,48 @@ public class JetGraderApp extends JFrame {
         achRcMcFields.clear();
         achRcSaFields.clear();
 
-        JPanel wrapper = new JPanel(new GridLayout(2, 2, 18, 18));
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+
+        JPanel lcMc = buildAchievementMcSection("LC 객관 1~15", 1, 15, achLcMcFields, 6);
+        lcMc.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel lcSa = buildAchievementSaSection("LC 서답 1~3", achievementConfig.lcSaIndex, achLcSaFields);
+        lcSa.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel rcMc = buildAchievementMcSection("RC 객관 16~34", 16, 34, achRcMcFields, 6);
+        rcMc.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel rcSa = buildAchievementSaSection("RC 서답 4~6", achievementConfig.rcSaIndex, achRcSaFields);
+        rcSa.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        content.add(lcMc);
+        content.add(Box.createVerticalStrut(18));
+        content.add(lcSa);
+        content.add(Box.createVerticalStrut(18));
+        content.add(rcMc);
+        content.add(Box.createVerticalStrut(18));
+        content.add(rcSa);
+
+        JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
-        wrapper.add(buildAchievementMcSection("LC 객관 1~15", 1, 15, achLcMcFields, 6));
-        wrapper.add(buildAchievementSaSection("LC 서답 1~3", achievementConfig.lcSaIndex, achLcSaFields));
-        wrapper.add(buildAchievementMcSection("RC 객관 16~34", 16, 34, achRcMcFields, 6));
-        wrapper.add(buildAchievementSaSection("RC 서답 4~6", achievementConfig.rcSaIndex, achRcSaFields));
+        wrapper.add(createStyledScrollPane(content), BorderLayout.CENTER);
 
         if (!achLcMcFields.isEmpty()) {
-            SwingUtilities.invokeLater(() -> achLcMcFields.get(0).requestFocusInWindow());
+            SwingUtilities.invokeLater(new Runnable() {
+                public void run() {
+                    achLcMcFields.get(0).requestFocusInWindow();
+                }
+            });
         }
         return wrapper;
     }
-
     private JPanel buildAchievementMcSection(String title, int start, int end, List<DigitField> target, int maxDigit) {
         JPanel card = createCardSection(title);
-        JPanel flow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel flow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         flow.setOpaque(false);
 
         List<DigitField> local = new ArrayList<>();
@@ -482,9 +536,11 @@ public class JetGraderApp extends JFrame {
         for (int i = 0; i < local.size(); i++) {
             JPanel wrap = new JPanel(new BorderLayout(0, 4));
             wrap.setOpaque(false);
+
             JLabel num = new JLabel(String.valueOf(start + i), SwingConstants.CENTER);
-            num.setFont(new Font("Malgun Gothic", Font.PLAIN, 11));
+            num.setFont(new Font("Malgun Gothic", Font.PLAIN, 12));
             num.setForeground(MUTED);
+
             wrap.add(local.get(i), BorderLayout.CENTER);
             wrap.add(num, BorderLayout.SOUTH);
             flow.add(wrap);
@@ -849,14 +905,25 @@ public class JetGraderApp extends JFrame {
         double rcMax = cfg.baseRC + calculateMax(cfg.rcParts);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("[").append(levelName).append(" JET 채점 결과]\n\n");
-        sb.append("LC: ").append(formatNumber(lc)).append(" / ").append(formatNumber(lcMax)).append("\n");
-        sb.append("RC: ").append(formatNumber(rc)).append(" / ").append(formatNumber(rcMax)).append("\n");
-        sb.append("총점: ").append(formatNumber(total)).append(" / ").append(formatNumber(lcMax + rcMax)).append("\n\n");
-        sb.append("LC 세부\n");
-        for (PartSummary s : lcScore.summaries) sb.append("- ").append(s.partName).append(": ").append(s.correctCount).append("/").append(s.totalCount).append("\n");
-        sb.append("\nRC 세부\n");
-        for (PartSummary s : rcScore.summaries) sb.append("- ").append(s.partName).append(": ").append(s.correctCount).append("/").append(s.totalCount).append("\n");
+        sb.append("[").append(levelName).append(" JET]   ");
+        sb.append("LC ").append(formatNumber(lc)).append("/").append(formatNumber(lcMax));
+        sb.append("   |   RC ").append(formatNumber(rc)).append("/").append(formatNumber(rcMax));
+        sb.append("   |   총점 ").append(formatNumber(total)).append("/").append(formatNumber(lcMax + rcMax));
+
+        sb.append("\n\nLC 세부 → ");
+        for (int i = 0; i < lcScore.summaries.size(); i++) {
+            PartSummary s = lcScore.summaries.get(i);
+            if (i > 0) sb.append("   |   ");
+            sb.append(s.partName).append(": ").append(s.correctCount).append("/").append(s.totalCount);
+        }
+
+        sb.append("\nRC 세부 → ");
+        for (int i = 0; i < rcScore.summaries.size(); i++) {
+            PartSummary s = rcScore.summaries.get(i);
+            if (i > 0) sb.append("   |   ");
+            sb.append(s.partName).append(": ").append(s.correctCount).append("/").append(s.totalCount);
+        }
+
         gradeResultArea.setText(sb.toString());
     }
 
@@ -927,16 +994,15 @@ public class JetGraderApp extends JFrame {
         for (int i = 17; i < 45; i++) rcMax += weights.get(i);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("[모의고사 채점 결과]\n\n");
-        sb.append("LC: ").append(formatNumber(lcScore)).append("/").append(formatNumber(lcMax)).append(" (맞힌 개수: ").append(lcGot).append("/17)\n");
-        sb.append("RC: ").append(formatNumber(rcScore)).append("/").append(formatNumber(rcMax)).append(" (맞힌 개수: ").append(rcGot).append("/28)\n");
-        sb.append("총점: ").append(formatNumber(lcScore + rcScore)).append("/").append(formatNumber(lcMax + rcMax)).append("\n\n");
-        if (!lcWrong.isEmpty() || !rcWrong.isEmpty()) {
-            sb.append("오답 / 무효 번호\n");
-            if (!lcWrong.isEmpty()) sb.append("- LC(1~17): ").append(joinIntegers(lcWrong)).append("\n");
-            if (!rcWrong.isEmpty()) sb.append("- RC(18~45): ").append(joinIntegers(rcWrong)).append("\n");
-        }
-        sb.append("\n3점 문항: ").append(joinIntSet(mockConfig.threePointQuestions));
+        sb.append("[모의고사]   ");
+        sb.append("LC ").append(formatNumber(lcScore)).append("/").append(formatNumber(lcMax)).append(" (").append(lcGot).append("/17)");
+        sb.append("   |   RC ").append(formatNumber(rcScore)).append("/").append(formatNumber(rcMax)).append(" (").append(rcGot).append("/28)");
+        sb.append("   |   총점 ").append(formatNumber(lcScore + rcScore)).append("/").append(formatNumber(lcMax + rcMax));
+
+        sb.append("\n\n오답/무효 → LC: ").append(lcWrong.isEmpty() ? "없음" : joinIntegers(lcWrong));
+        sb.append("   |   RC: ").append(rcWrong.isEmpty() ? "없음" : joinIntegers(rcWrong));
+        sb.append("\n3점 문항 → ").append(joinIntSet(mockConfig.threePointQuestions));
+
         gradeResultArea.setText(sb.toString());
     }
 
@@ -961,14 +1027,16 @@ public class JetGraderApp extends JFrame {
         int rcScore = Math.max(0, achievementConfig.rcMax - (rcMcWrong.size() * 2 + rcSaWrong.size() * 4));
 
         StringBuilder sb = new StringBuilder();
-        sb.append("[학업성취도 평가 채점 결과]\n\n");
-        sb.append("LC: ").append(lcScore).append("/").append(achievementConfig.lcMax).append("\n");
-        if (!lcMcWrong.isEmpty()) sb.append("- LC 객관 오답: ").append(joinIntegers(lcMcWrong)).append("\n");
-        if (!lcSaWrong.isEmpty()) sb.append("- LC 서답 오답: ").append(joinIntegers(lcSaWrong)).append("\n");
-        sb.append("\nRC: ").append(rcScore).append("/").append(achievementConfig.rcMax).append("\n");
-        if (!rcMcWrong.isEmpty()) sb.append("- RC 객관 오답: ").append(joinIntegers(rcMcWrong)).append("\n");
-        if (!rcSaWrong.isEmpty()) sb.append("- RC 서답 오답: ").append(joinIntegers(rcSaWrong)).append("\n");
-        sb.append("\n총점: ").append(lcScore + rcScore).append("/").append(achievementConfig.lcMax + achievementConfig.rcMax);
+        sb.append("[학업성취도 평가]   ");
+        sb.append("LC ").append(lcScore).append("/").append(achievementConfig.lcMax);
+        sb.append("   |   RC ").append(rcScore).append("/").append(achievementConfig.rcMax);
+        sb.append("   |   총점 ").append(lcScore + rcScore).append("/").append(achievementConfig.lcMax + achievementConfig.rcMax);
+
+        sb.append("\n\nLC 오답 → 객관: ").append(lcMcWrong.isEmpty() ? "없음" : joinIntegers(lcMcWrong));
+        sb.append("   |   서답: ").append(lcSaWrong.isEmpty() ? "없음" : joinIntegers(lcSaWrong));
+        sb.append("\nRC 오답 → 객관: ").append(rcMcWrong.isEmpty() ? "없음" : joinIntegers(rcMcWrong));
+        sb.append("   |   서답: ").append(rcSaWrong.isEmpty() ? "없음" : joinIntegers(rcSaWrong));
+
         gradeResultArea.setText(sb.toString());
     }
 
@@ -1243,7 +1311,7 @@ public class JetGraderApp extends JFrame {
         JLabel metaLabel = new JLabel(meta);
         metaLabel.setFont(new Font("Malgun Gothic", Font.PLAIN, 13));
         metaLabel.setForeground(accent.darker());
-        JButton button = createPrimaryButton("열기", accent);
+        JButton button = createPrimaryButton("열기", BTN_BLUE);
         button.addActionListener(action);
 
         card.add(titleLabel);
@@ -1258,25 +1326,56 @@ public class JetGraderApp extends JFrame {
     }
 
     private JButton createPrimaryButton(String text, Color color) {
-        JButton button = new JButton(text);
-        button.setFont(new Font("Malgun Gothic", Font.BOLD, 14));
-        button.setForeground(Color.WHITE);
-        button.setBackground(color);
-        button.setFocusPainted(false);
-        button.setBorder(new CompoundBorder(new LineBorder(color.darker(), 1, true), new EmptyBorder(10, 16, 10, 16)));
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        return button;
+        JButton btn = new JButton(text);
+        btn.setFocusPainted(false);
+        btn.setFont(new Font("Malgun Gothic", Font.BOLD, 15));
+        btn.setForeground(Color.WHITE);
+
+        btn.setBackground(color);
+        btn.setOpaque(true);
+        btn.setBorderPainted(false);
+
+        btn.setPreferredSize(new Dimension(140, 45));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // hover 효과
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                btn.setBackground(color.darker());
+            }
+
+            public void mouseExited(MouseEvent e) {
+                btn.setBackground(color);
+            }
+        });
+
+        return btn;
     }
 
     private JButton createSecondaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFont(new Font("Malgun Gothic", Font.BOLD, 14));
-        button.setForeground(TEXT);
-        button.setBackground(Color.WHITE);
-        button.setFocusPainted(false);
-        button.setBorder(new CompoundBorder(new LineBorder(LINE, 1, true), new EmptyBorder(10, 16, 10, 16)));
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        return button;
+        JButton btn = new JButton(text);
+        btn.setFocusPainted(false);
+        btn.setFont(new Font("Malgun Gothic", Font.BOLD, 14));
+
+        btn.setBackground(new Color(120, 130, 150));
+        btn.setForeground(Color.WHITE);
+        btn.setOpaque(true);
+        btn.setBorderPainted(false);
+
+        btn.setPreferredSize(new Dimension(120, 42));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                btn.setBackground(new Color(100, 110, 130));
+            }
+
+            public void mouseExited(MouseEvent e) {
+                btn.setBackground(new Color(120, 130, 150));
+            }
+        });
+
+        return btn;
     }
 
     private void styleComboBox(JComboBox<String> comboBox) {
@@ -1609,8 +1708,9 @@ public class JetGraderApp extends JFrame {
         DigitField(int maxDigit) {
             super(1);
             this.maxDigit = maxDigit;
-            setFont(new Font("Consolas", Font.BOLD, 18));
-            setPreferredSize(new Dimension(48, 42));
+            setFont(new Font("Consolas", Font.BOLD, 22));
+            setPreferredSize(new Dimension(62, 52));
+            setMinimumSize(new Dimension(62, 52));
             setCaretColor(PRIMARY_DARK);
             ((AbstractDocument) getDocument()).setDocumentFilter(new DigitFilter());
         }
@@ -1619,21 +1719,27 @@ public class JetGraderApp extends JFrame {
             @Override
             public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
                 if (text == null) return;
+
                 String normalized = text.trim();
                 if (normalized.isEmpty()) {
                     super.replace(fb, 0, fb.getDocument().getLength(), "", attrs);
                     return;
                 }
+
                 char ch = normalized.charAt(normalized.length() - 1);
                 if (ch < '1' || ch > (char) ('0' + maxDigit)) {
                     Toolkit.getDefaultToolkit().beep();
                     return;
                 }
+
                 super.replace(fb, 0, fb.getDocument().getLength(), String.valueOf(ch), attrs);
-                SwingUtilities.invokeLater(() -> {
-                    if (nextField != null) {
-                        nextField.requestFocusInWindow();
-                        nextField.selectAll();
+
+                SwingUtilities.invokeLater(new Runnable() {
+                    public void run() {
+                        if (nextField != null) {
+                            nextField.requestFocusInWindow();
+                            nextField.selectAll();
+                        }
                     }
                 });
             }
